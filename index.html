@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<!-- JQuery -->
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js" type='text/javascript'></script>
+
+<!-- 
+Algorithm logic
+Compiled from 'tsp.coffee' using the command-line coffeescript compiler
+tsp.js is ugly and uncommented, so don't try to read it!
+-->
+<script src="tsp.js" type='text/javascript'></script>
+
+<!-- Application UI code -->
+<script type='text/javascript'>
+var HEIGHT, WIDTH, GRID;
+HEIGHT = 50;
+WIDTH = 50;
+GRID = 10;
+
+var points = new Array();
+
+//return random number i, n <= i < p
+function rand (n,p) {
+  return Math.floor( Math.random()*p + n );
+}
+
+//rounds num to dec decimals
+function round(num, dec) {
+	return Math.round(num*Math.pow(10,dec))/Math.pow(10,dec);
+}
+
+//parses points from text to the points variable
+function parseTextPoints(text) {
+	clearPoints();
+	coords = text.split(/[,\s]+/); //split on whitespace or commas
+	if( coords.length % 2 !== 0 ) {
+		alert( "Error parsing points!" );
+		return;
+	}
+	while ( coords.length > 0 ) {
+		points.push( new Point(coords.shift(), coords.shift() )); // treat first value as x and next as y
+	}
+}
+
+//adds num random points to set without duplicates
+function addRandomPoints(num) {
+	for( var i = 0; i < num; i++ ) {
+		var p;
+		while( true ) {
+			var p = new Point( rand(0,WIDTH), rand(0,HEIGHT) );
+			var exists = false;
+			for( var j = 0; j < points.length; j++ ) {
+				if( p.equals(points[j]) ) {
+					exists = true;
+					break;
+				}
+			}
+			if( exists ) continue;
+			break;
+		} 
+		points.push( p );
+	}
+}
+
+function clearPoints() { points = new Array(); }
+
+//draws a grid on context ctx
+function drawGrid( ctx ) {
+	for( var i = 0; i < WIDTH; i++ ) {
+		ctx.strokeStyle = "#ddd";
+		ctx.lineWidth = .5;
+		ctx.beginPath();
+		ctx.moveTo( i*GRID, 0);
+		ctx.lineTo( i*GRID, HEIGHT*GRID);
+		ctx.stroke();
+	}
+	for( var i = 0; i < HEIGHT; i++ ) {
+		ctx.strokeStyle = "#ddd";
+		ctx.lineWidth = .5;
+		ctx.beginPath();
+		ctx.moveTo( 0, i*GRID);
+		ctx.lineTo( WIDTH*GRID, i*GRID);
+		ctx.stroke();
+	}
+}
+
+//draws point on ctx
+function drawPoint( ctx, point ) {
+	ctx.beginPath();
+	ctx.arc( point.x*GRID, point.y*GRID, GRID/4, 0, Math.PI*2, false );
+	ctx.fillStyle = "#000";
+	ctx.fill();
+}
+
+//draws grid and points on context ctx
+function drawPoints( ctx ) {
+	ctx.clearRect(0,0,WIDTH*GRID, HEIGHT*GRID);
+	drawGrid(ctx);
+	for( var i = 0; i < points.length; i++ ) {
+		drawPoint(ctx, points[i] );
+	}
+	//add n indicator
+	ctx.fillText("n: "+points.length, WIDTH*(GRID-1), HEIGHT*(GRID));
+}
+
+//draw path on ctx
+function drawPath(path,ctx) {
+	ctx.strokeStyle = "#000";
+	ctx.beginPath();
+	ctx.moveTo( path[0].x*GRID, path[0].y*GRID );
+	for( var i = 1; i < path.length; i++ ) {
+		ctx.lineTo( path[i].x*GRID, path[i].y*GRID );
+	}
+	ctx.stroke();
+	//draw back to start
+	ctx.strokeStyle = "#aaa";
+	ctx.beginPath();
+	ctx.moveTo( path[path.length-1].x*GRID, path[path.length-1].y*GRID );
+	ctx.lineTo( path[0].x*GRID, path[0].y*GRID );
+	ctx.stroke();
+}
+
+//adds runtime info to table
+function addRun(e, n, runtime) {
+	//alert( "adding run...");
+	row = e.find("tr.n"+n);
+	if( row.length !== 0 ) {
+		runs = parseInt(row.find("td.numruns").html());
+		avg = parseInt(row.find("td.avg").html());
+		avg *= runs;
+		runs++;
+		avg = round((avg+runtime)/runs,2);
+		row.find("td.numruns").html(runs);
+		row.find("td.avg").html(avg);
+		row.find("td.last").html(runtime);
+	} else {
+		e.find("tbody").append("<tr class=\'n"+n+"\'><td>"+n+"</td><td class=\'numruns\'>1</td><td class=\'avg\'>"+runtime+"</td><td class=\'last\'>"+runtime+"</td></tr>");
+	}
+}
+
+$(document).ready(function(){
+	//canvas info
+	var canvas = document.getElementById("map");
+    var ctx = canvas.getContext("2d");
+	drawGrid(ctx); // initially draw grid
+	
+	//add event handlers
+	$("#add-rand").click(function () {
+		addRandomPoints($("#rand-num").val());
+		$("#points").val(points.join());
+		drawPoints(ctx);
+	});
+	
+	$("#clear").click(function() {
+		clearPoints();
+		$("#points").val(points.join());
+		drawPoints(ctx);
+	});
+	
+	$("#points").toggle();
+	$("#manual").click(function() {
+		$("#points").toggle();
+	});
+	
+	$("#points").blur(function() {
+		parseTextPoints($("#points").val());
+		drawPoints(ctx);
+	});
+	
+	$("#map").click(function(e) {
+		var x = Math.round((e.pageX - $("#map").offset().left)/GRID);
+		var y = Math.round((e.pageY - $("#map").offset().top)/GRID);
+		
+		var p = new Point( x,y );
+		for( var j = 0; j < points.length; j++ ) {
+			if( p.equals(points[j]) ) {
+				points.splice(j,1); //remove point
+				$("#points").val(points.join());
+				drawPoints(ctx);
+				return;
+			}
+		}
+		points.push(p);
+		$("#points").val(points.join());
+		drawPoints(ctx);
+	});
+	
+	$("#nn-path").toggle();
+	$("#nn-show").click(function () {
+		$("#nn-path").toggle();
+	});
+	
+	$("#nn-run").click(function() {
+		drawPoints(ctx);
+		
+		if( points.length < 1 ) return;
+		
+		$("#nn-run").val("Running...");
+		$("#nn-run").attr("disabled", true);
+		
+		var start = (new Date).getTime();
+		var path = nearestNeighbor(points); // run algorithm
+		var runtime = (new Date).getTime() - start;
+		
+		addRun($("#nn-table"), points.length, runtime);
+		
+		$("#nn-path").val(path.join());
+		
+		$("#nn-run").val("Run");
+		$("#nn-run").attr("disabled", false);
+		
+		drawPath(path, ctx);
+	});
+	
+	$("#ex-path").toggle();
+	$("#ex-show").click(function () {
+		$("#ex-path").toggle();
+	});
+	
+	$("#ex-run").click(function() {
+		drawPoints(ctx);
+		
+		if( points.length < 1 ) return;
+		
+		//sanity check
+		if( points.length > 9 && !confirm("Hey, n is "+points.length+", which means an exhaustive O(n!) search will take essentially forever. Are you sure you want to try?")) return;
+		
+		$("#ex-run").val("Running...");
+		$("#ex-run").attr("disabled", true);
+		
+		var start = (new Date).getTime();
+		var path = tspExhaustive(points); // run algorithm
+		var runtime = (new Date).getTime() - start;
+		
+		addRun($("#ex-table"), points.length, runtime);
+		
+		$("#ex-path").val(path.join());
+		
+		$("#ex-run").val("Run");
+		$("#ex-run").attr("disabled", false);
+		
+		drawPath(path, ctx);
+	});
+ });
+</script>
+<style type='text/css'>
+#map { cursor: pointer; }
+#points, #nn-path, #ex-path { height: 3em; width: 30em;}
+</style>
+<title>Traveling Salesman Problem Algorithms</title>
+</head>
+<body>
+<header>
+	<h1>Traveling Salesman Problem Algorithms</h1>
+	<p>This page runs two algorithms to find the shortest tour that visits all the points shown on the grid. Click the grid to add a point at the cursor or delete the point under the cursor. Alternatively, you may add random points, or manually edit the points as series of whitespace-separated coordinates. You can view the <a href="http://jashkenas.github.com/coffee-script/">CoffeeScript</a> code for the algorithms at <a href='tsp.coffee'>tsp.coffee</a>, since this page's JavaScript uses the compiled version.</p>
+</header>
+<section id="ui">
+	<div id="menu">
+		<input type="button" value="Manually Edit Points" id="manual" />
+		<input type="button" value="Add" id="add-rand" />
+		<input type="number" id="rand-num" min="1" value="1" />
+		<span>Random Points</span>
+		<input type="button" value="clear" id="clear" /><br />
+		<textarea value="" id="points"></textarea>
+	</div>
+	<canvas id="map" width='500' height='500'></canvas>
+</section>
+<section id="nearest-neighbor">
+	<h2>Nearest Neighbor Algorithm</h2>
+	<input type="button" value="Run" id="nn-run" />
+	<input type="button" value="Show/Hide Path" id="nn-show" /><br />
+	<textarea value="" id="nn-path"></textarea>
+	<table id="nn-table">
+		<tr>
+			<th>n</th>
+			<th>runs</th>
+			<th>avg. runtime (ms)</th>
+			<th>last runtime (ms)</th>
+		</tr>
+	</table>
+</section>
+<section id="exhaustive">
+	<h2>Exhaustive Algorithm</h2>
+	<input type="button" value="Run" id="ex-run" />
+	<input type="button" value="Show/Hide Path" id="ex-show" /><br />
+	<textarea value="" id="ex-path"></textarea>
+	<table id="ex-table">
+		<tr>
+			<th>n</th>
+			<th>runs</th>
+			<th>avg. runtime (ms)</th>
+			<th>last runtime (ms)</th>
+		</tr>
+	</table>
+</section>
+<footer>&copy; 2011 Steven Ruppert. Created for my Algorithms class.</footer>
+</body>
+</html>
